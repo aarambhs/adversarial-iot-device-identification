@@ -7,13 +7,16 @@ import sys
 from getDictionary import InputVector
 from testMNB import MNBs
 
+from art.attacks.evasion import FastGradientMethod
+from art.estimators.classification import SklearnClassifier
 
 if __name__ == '__main__':
+    
     df = pd.read_csv(sys.argv[1], parse_dates=['time_start'])
     
     mnbs = MNBs(df, ['ports', 'dns', 'cs'], 'mac')
 
-    clf = RandomForestClassifier(n_estimators=20, n_jobs=50)
+    
 
     weeks = [list(range(44,53)), list(range(1,10)), list(range(10,19))]
 
@@ -36,7 +39,11 @@ if __name__ == '__main__':
     X = trainDF[features]
     y = trainDF['mac']
 
-    clf.fit(X, y)
+    clf = RandomForestClassifier(n_estimators=20, n_jobs=18)
+
+    classifier = SklearnClassifier(model=clf)
+
+    classifier.fit(X, y)
    
     for date in testCons:
         testCon = df['time_start'].dt.week == pd.Timestamp(date).week
@@ -45,8 +52,17 @@ if __name__ == '__main__':
         X = testDF[features]
         y = testDF['mac']
 
-        y_pred = clf.predict(X)
-        print(metrics.classification_report(y, y_pred))
-        print(f"Accuracy {date.week}:", metrics.accuracy_score(y, y_pred), metrics.f1_score(y, y_pred, average="micro"))
+        predictions = classifier.predict(X)
+        accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
+        print("Accuracy on benign test examples: {}%".format(accuracy * 100))
 
+        # Step 6: Generate adversarial test examples
+        attack = FastGradientMethod(estimator=classifier, eps=0.2)
+        x_test_adv = attack.generate(x=X)
+        print(x_test_adv)
 
+        # Step 7: Evaluate the ART classifier on adversarial test examples
+
+        predictions = classifier.predict(x_test_adv)
+        accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
+        print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))

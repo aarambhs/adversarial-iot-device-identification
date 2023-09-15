@@ -16,11 +16,15 @@ import sys, os, time, json, datetime, glob
 
 from logzero import logger
 import warnings
-import tensorflow as tf
+#import tensorflow as tf
 
 import numpy as np
 import pandas as pd
 from pathlib import Path
+
+from art.attacks.evasion import FastGradientMethod
+from art.estimators.classification import KerasClassifier
+
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
@@ -34,7 +38,7 @@ if __name__ == '__main__':
     model.add(Dense(256, activation='relu'))
     model.add(Dense(41, activation='softmax'))
 
-    model.compile(loss="categorical_crossentropy", optimizer='adam',
+    model.compile(loss="sparse_categorical_crossentropy", optimizer='adam',
     	metrics=["accuracy"])
 
     y = []
@@ -122,7 +126,7 @@ if __name__ == '__main__':
         X_train, X_test, y_train, y_test = train_test_split(X, labels, test_size=0.2, stratify=labels)
 
         my_callbacks = [
-                #tf.keras.callbacks.EarlyStopping(patience=2),
+                tf.keras.callbacks.EarlyStopping(patience=2),
                 keras.callbacks.ModelCheckpoint(filepath='model.{epoch:02d}-{val_loss:.2f}.h5', monitor='val_loss', verbose=0, save_best_only=False, save_weights_only=False, mode='auto', period=1),
                 #tf.keras.callbacks.TensorBoard(log_dir='./logs'),
             ]

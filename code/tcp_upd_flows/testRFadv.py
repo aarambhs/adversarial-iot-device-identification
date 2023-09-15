@@ -11,6 +11,12 @@ from sklearn import metrics
 from joblib import dump, load
 from pathlib import Path
 
+from art.attacks.evasion import FastGradientMethod, ZooAttack
+from art.estimators.classification import SklearnClassifier
+
+from art.estimators.classification.scikitlearn import ScikitlearnRandomForestClassifier
+
+
 features = ['srcPort', 'destPort',
        'bytes_out', 'num_pkts_out', 'bytes_in', 'num_pkts_in', 'f_ipt_mean',
        'f_ipt_std', 'f_ipt_var', 'f_ipt_skew', 'f_ipt_kurtosis', 'f_b_mean',
@@ -35,6 +41,7 @@ fieldTypes = {'deviceId': 'int16',
         'domain2': 'object',
         'domainId': 'int16'}
 
+trainMode=True
 
 #df = pd.read_csv(sys.argv[1], dtype = fieldTypes, parse_dates = ['time_start'])
 df = pd.read_csv(sys.argv[1], parse_dates = ['time_start'])
@@ -67,16 +74,18 @@ rfc = RandomForestClassifier(n_jobs=18)
 #knn = KNeighborsClassifier(n_jobs=54)
 #mv = VotingClassifier(estimators=[('knn', knn), ('dt', dtc), ('rf', rfc), ('svm',svc)], voting='hard', n_jobs=54)
 
-modelFile = Path(f"model/rfc_{sys.argv[2]}")
+modelFile = Path(f"model/rfc_justvalues_{sys.argv[2]}")
 if modelFile.is_file():
     print(f"loading model {modelFile}")
     rfc = load(modelFile)
+    
+    print(f"loaded model {modelFile}")
 else:
     print(f"start training for weeks {weeks[int(sys.argv[2])]}")
-    rfc.fit(X_train, y_train)
+    rfc.fit(X_train.values, y_train)
     print("RFC trained")
     #dump(rfc, f"model/rfc_{sys.argv[2]}")
-    dump(rfc, modelFile)
+    dump(advClassifier, modelFile)
 
 #svc.fit(X, y)
 #print("SVC trained")
@@ -93,6 +102,14 @@ else:
 #mv.fit(X, y)
 #print("MV Trained")
 #dump(mv, f"model/mv_{sys.argv[2]}")
+
+advClassifier = SklearnClassifier(rfc)
+zoo = ZooAttack(classifier=advClassifier, confidence=0.0, targeted=False, learning_rate=1e-1, max_iter=20,
+                    binary_search_steps=10, initial_const=1e-3, abort_early=True, use_resize=False, 
+                    use_importance=False, nb_parallel=1, batch_size=1, variable_h=0.2)
+
+# Generate adversarial samples with ART Zeroth Order Optimization attack
+
 
 for date in testCons:
     testCon = df['time_start'].dt.week == pd.Timestamp(date).week
@@ -117,6 +134,7 @@ for date in testCons:
     #y_mv = mv.predict(X)
     #print("mv predict")
     
+    print("Benign test")
     print(f"{date.week}", metrics.f1_score(y, y_rfc, average='micro'))
             #metrics.f1_score(y, y_svc, average='micro'),
             #metrics.f1_score(y, y_dtc, average='micro'),
@@ -125,6 +143,18 @@ for date in testCons:
             #)
     #print(f"Accuracy {date.date}:", metrics.accuracy_score(y, y_pred))
 
+    # Step 6: Generate adversarial test examples
+    
+
+    x_test_adv = zoo.generate(x=X)
+    print(x_test_adv)
+    np.savetxt(f"RFfgsm-{date.week}.csv", x_test_adv, delimiter=",")
+
+    # Step 7: Evaluate the ART classifier on adversarial test examples
+    y_rfc = advClassifier.predict(x_test_adv)
+  
+    print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))
+    print(f"{date.week}", metrics.f1_score(y, y_rfc, average='micro'))
 sys.exit()
 
 
