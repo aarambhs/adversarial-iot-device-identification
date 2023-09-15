@@ -85,7 +85,7 @@ else:
     rfc.fit(X_train.values, y_train)
     print("RFC trained")
     #dump(rfc, f"model/rfc_{sys.argv[2]}")
-    dump(advClassifier, modelFile)
+    dump(rfc, modelFile)
 
 #svc.fit(X, y)
 #print("SVC trained")
@@ -104,9 +104,9 @@ else:
 #dump(mv, f"model/mv_{sys.argv[2]}")
 
 advClassifier = SklearnClassifier(rfc)
-zoo = ZooAttack(classifier=advClassifier, confidence=0.0, targeted=False, learning_rate=1e-1, max_iter=20,
-                    binary_search_steps=10, initial_const=1e-3, abort_early=True, use_resize=False, 
-                    use_importance=False, nb_parallel=1, batch_size=1, variable_h=0.2)
+zoo = ZooAttack(classifier=advClassifier, confidence=0.0, targeted=False, learning_rate=1, max_iter=3,
+                    binary_search_steps=3, initial_const=1e-3, abort_early=True, use_resize=False, 
+                    use_importance=False, nb_parallel=1, batch_size=1, variable_h=0.3)
 
 # Generate adversarial samples with ART Zeroth Order Optimization attack
 
